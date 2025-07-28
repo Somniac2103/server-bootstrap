@@ -65,34 +65,33 @@ if [[ ! -f "$KEY_PATH" ]]; then
 fi
 
 # ----------------------------
-# SSH Setup with sshpass
+# SSH Setup with sshpass (Base64-safe)
 # ----------------------------
 echo "🔗 Connecting as root@$SERVER_IP to create user and install packages..."
 
-PUBKEY_CONTENT=$(cat "$KEY_PATH.pub")
+PUBKEY_CONTENT=$(< "$KEY_PATH.pub")
 
-sshpass -p "$ROOT_PASS" ssh -o StrictHostKeyChecking=no root@"$SERVER_IP" bash -s -- "$NEW_USER" "$NEW_PASS" "$PUBKEY_CONTENT" <<'EOS'
+sshpass -p "$ROOT_PASS" ssh -o StrictHostKeyChecking=no root@"$SERVER_IP" bash -s -- "$NEW_USER" "$NEW_PASS" "$(< "$KEY_PATH.pub")" <<EOS
 set -euo pipefail
-USERNAME="$1"
-USERPASS="$2"
-PUBKEY="$3"
 
-# Create user with adduser (creates home dir by default)
-adduser --disabled-password --gecos "" "$USERNAME"
-echo "$USERNAME:$USERPASS" | chpasswd
-usermod -aG sudo "$USERNAME"
+USERNAME="\$1"
+USERPASS="\$2"
+PUBKEY="\$3"
 
-# Configure sudo access
-echo "$USERNAME ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/$USERNAME
-chmod 440 /etc/sudoers.d/$USERNAME
+echo "🧪 Testing SSH key login BEFORE disabling password auth..."
 
-# Setup SSH directory
-mkdir -p /home/$USERNAME/.ssh
-echo "$PUBKEY" > /home/$USERNAME/.ssh/authorized_keys
-chmod 700 /home/$USERNAME/.ssh
-chmod 600 /home/$USERNAME/.ssh/authorized_keys
-chown -R $USERNAME:$USERNAME /home/$USERNAME/.ssh
+id "\$USERNAME" &>/dev/null || useradd -m -s /bin/bash "\$USERNAME"
+echo "\$USERNAME:\$USERPASS" | chpasswd
+mkdir -p /home/\$USERNAME/.ssh
+echo "\$PUBKEY" > /home/\$USERNAME/.ssh/authorized_keys
+chown -R "\$USERNAME":"\$USERNAME" /home/\$USERNAME/.ssh
+chmod 700 /home/\$USERNAME/.ssh
+chmod 600 /home/\$USERNAME/.ssh/authorized_keys
+
+echo "✅ User setup and SSH key deployed successfully."
 EOS
+
+
 
 # ----------------------------
 # SSH Hardening & Ansible Install

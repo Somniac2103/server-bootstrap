@@ -1,0 +1,149 @@
+# TODO Project 1: Bootstrap
+
+# TODO Goal: To create a script that can be downloaded then runned locally to create a secure link with an remote ubuntu server then install all the required programs for ansible to work and download a designated repository which will be use in the next phase of setup with ansible.
+
+# TODO REQUIREMENTS:
+# TODO: Must get and valdiate all necessary information for the process to run.
+# # ----------------------------
+# # 🌐 User Input & Validation
+# # ----------------------------
+
+# read -rp "🌐 Enter server IP address: " SERVER_IP
+# while ! [[ "$SERVER_IP" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; do
+#   echo "❌ Invalid IP format. Use something like 192.168.1.10"
+#   read -rp "🌐 Enter server IP address: " SERVER_IP
+# done
+
+# read -rp "👤 Enter NEW sudo username to create: " NEW_USER
+# while ! [[ "$NEW_USER" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]]; do
+#   echo "❌ Invalid username. Use lowercase letters, digits, _ or - (max 32 chars, start with a letter or underscore)."
+#   read -rp "👤 Enter NEW sudo username to create: " NEW_USER
+# done
+
+# read -rsp "🔑 Enter password for new user '$NEW_USER': " NEW_PASS
+# echo
+# while [[ ${#NEW_PASS} -lt 8 || ! "$NEW_PASS" =~ [A-Z] || ! "$NEW_PASS" =~ [a-z] || ! "$NEW_PASS" =~ [0-9] ]]; do
+#   echo "❌ Password must be at least 8 characters and include upper-case, lower-case, and a digit."
+#   read -rsp "🔑 Enter password for new user '$NEW_USER': " NEW_PASS
+#   echo
+# done
+
+# read -rsp "🛡️  Enter root password for $SERVER_IP: " ROOT_PASS
+# echo
+# while [[ -z "$ROOT_PASS" ]]; do
+#   echo "❌ Root password cannot be empty."
+#   read -rsp "🛡️  Enter root password for $SERVER_IP: " ROOT_PASS
+#   echo
+# done
+
+# read -rp "📦 Enter Git HTTPS repo URL for Phase 2: " GIT_REPO
+# while ! [[ "$GIT_REPO" =~ ^https:\/\/[a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+(\.git)?$ ]]; do
+#   echo "❌ Invalid Git URL. Use HTTPS format like https://github.com/user/repo.git"
+#   read -rp "📦 Enter Git HTTPS repo URL for Phase 2: " GIT_REPO
+# done
+
+SERVER_IP="82.29.190.13"
+NEW_USER="somniac"
+NEW_PASS="Nomlas2103"
+ROOT_PASS="N1xk4&SnwaDSC9ypyy"
+GIT_REPO="https://github.com/Somniac2103/server-bootstrap"
+
+
+echo -e "\n✅ Input Summary:"
+echo "--------------------------"
+echo "🌐 Server IP Address    : $SERVER_IP"
+echo "👤 New Sudo Username    : $NEW_USER"
+echo "🔑 New User Password    : $NEW_PASS"
+echo "🛡️  Root Password       : $ROOT_PASS"
+echo "📦 Git Repository URL   : $GIT_REPO"
+echo "--------------------------"
+
+
+# TODO:Must be able to link to server automatically.
+
+# ----------------------------
+# 🔐 SSH Connection Test
+# ----------------------------
+
+echo -e "\n🔐 Testing SSH connection to $SERVER_IP as root..."
+
+# Install sshpass if not present
+if ! command -v sshpass >/dev/null 2>&1; then
+  echo "📦 Installing sshpass..."
+  sudo apt-get update -qq && sudo apt-get install -y sshpass
+fi
+
+# Test SSH connection
+sshpass -p "$ROOT_PASS" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 root@"$SERVER_IP" "echo '✅ Connected to remote server as root.'" || {
+  echo "❌ Failed to connect to $SERVER_IP as root. Check password or SSH access."
+  exit 1
+}
+
+# ----------------------------
+# ✅ Remote Access Confirmation
+# ----------------------------
+
+sshpass -p "$ROOT_PASS" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 root@"$SERVER_IP" << 'EOF'
+echo -e "\n🚀 Remote connection established successfully!"
+echo "🖥️  Hostname: $(hostname)"
+echo "📅 Uptime   : $(uptime -p)"
+echo "👤 Logged in as: $(whoami)"
+EOF
+
+
+# TODO: Must install all necessary programs to to enbale anisble to run a playbook on the remote server self.
+
+sshpass -p "$ROOT_PASS" ssh -o StrictHostKeyChecking=no root@"$SERVER_IP" << 'EOF'
+echo -e "\n⚙️  Installing Ansible and dependencies on remote server (Ubuntu 24.04)...\n"
+
+# Enable universe if not already
+add-apt-repository universe -y
+apt-get update -qq
+
+# Install Ansible the proper Ubuntu way
+apt-get install -y -qq \
+  python3 \
+  python3-pip \
+  git \
+  ansible \
+  software-properties-common
+
+# Confirm versions
+echo -e "\n✅ Installed Versions:"
+echo -n "Ansible: " && ansible --version | head -n1
+echo -n "Python : " && python3 --version
+echo -n "Git    : " && git --version
+EOF
+
+# TODO: Must download a repository on the remote server directly which will be used by anisble.
+
+sshpass -p "$ROOT_PASS" ssh -o StrictHostKeyChecking=no root@"$SERVER_IP" << EOF
+echo -e "\n📦 Cloning repository into /tmp/bootstrap-repo..."
+
+# Create directory in /tmp
+mkdir -p /tmp/bootstrap-repo
+cd /tmp/bootstrap-repo
+
+# Clone or pull latest
+if [ -d ".git" ]; then
+  echo "🔄 Repo already exists. Pulling latest..."
+  git pull
+else
+  git clone "$GIT_REPO" .
+fi
+
+echo -e "\n✅ Repo is ready in /tmp/bootstrap-repo"
+EOF
+
+# TODO OPTIONAL:
+# TODO: Create new user, password, add to sudoer list and give necessary permission .
+# TODO: Generate a ssh key on local pc and setup ssh connection with remote.
+# TODO: Disable root entirely (no password or login access remotely).
+# TODO: Disable password logon for new user remotely.
+# TODO: Also allow the script to run using arguments in the terminal
+
+# TODO EXTRAS:
+# TODO : Generate error for debugging.
+# TODO: Log all activities in console and logfile on local computer.
+# TODO: Run test check to validate all processes has been completed.
+# TODO: Give a completed report with all the secret information in a file on the local pc.
