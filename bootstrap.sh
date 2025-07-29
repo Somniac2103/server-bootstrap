@@ -220,26 +220,35 @@ else
 fi
 
 # TODO: Disable password logon for new user remotely.
-ssh -o StrictHostKeyChecking=no "$NEW_USER@$SERVER_IP" << 'EOF'
+sshpass -p "$NEW_PASS" ssh -o StrictHostKeyChecking=no "$NEW_USER@$SERVER_IP" <<EOF
 echo -e "\n🔐 Disabling password login for all users except root..."
 
-# Backup ssh config
-sudo cp /etc/ssh/sshd_config /etc/ssh/sshd_config.bak
+PASS="$NEW_PASS"
 
-# Remove any existing global PasswordAuthentication lines
-sudo sed -i '/^PasswordAuthentication/d' /etc/ssh/sshd_config
+# Backup main sshd_config
+echo "\$PASS" | sudo -S cp /etc/ssh/sshd_config /etc/ssh/sshd_config.bak
 
-# Add global default to disable password login
-echo "PasswordAuthentication no" | sudo tee -a /etc/ssh/sshd_config > /dev/null
+# Remove conflicting directives in override files
+echo "\$PASS" | sudo -S sed -i 's/^PasswordAuthentication.*/# PasswordAuthentication yes/' /etc/ssh/sshd_config.d/50-cloud-init.conf
 
-# Allow root to keep using password login
-echo -e "\nMatch User root\n  PasswordAuthentication yes" | sudo tee -a /etc/ssh/sshd_config > /dev/null
+# Clean any conflicting directives in sshd_config
+echo "\$PASS" | sudo -S sed -i '/^PasswordAuthentication/d' /etc/ssh/sshd_config
+echo "\$PASS" | sudo -S sed -i '/^Match User /,+2d' /etc/ssh/sshd_config
 
-# Restart SSH
-sudo systemctl restart ssh
+# Enforce global password login disable
+echo "\$PASS" | sudo -S bash -c 'echo "PasswordAuthentication no" >> /etc/ssh/sshd_config'
+
+# Allow root to still use password login
+echo "\$PASS" | sudo -S bash -c 'echo -e "\nMatch User root\n  PasswordAuthentication yes" >> /etc/ssh/sshd_config'
+
+# Restart SSH to apply changes
+echo "\$PASS" | sudo -S systemctl restart ssh
 
 echo "✅ Password login disabled for all users except root."
 EOF
+
+
+
 
 
 # TODO: Also allow the script to run using arguments in the terminal
