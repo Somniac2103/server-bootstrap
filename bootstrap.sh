@@ -43,8 +43,8 @@
 # done
 
 SERVER_IP="82.29.190.13"
-NEW_USER="somniac"
-NEW_PASS="Nomlas2103"
+NEW_USER="test"
+NEW_PASS="Test123"
 ROOT_PASS="N1xk4&SnwaDSC9ypyy"
 GIT_REPO="https://github.com/Somniac2103/server-bootstrap"
 
@@ -136,9 +136,39 @@ echo -e "\n✅ Repo is ready in /tmp/bootstrap-repo"
 EOF
 
 # TODO OPTIONAL:
+
 # TODO: Create new user, password, add to sudoer list and give necessary permission .
-# TODO: Generate a ssh key on local pc and setup ssh connection with remote.
+
+sshpass -p "$ROOT_PASS" ssh -o StrictHostKeyChecking=no root@"$SERVER_IP" << EOF
+echo -e "\n👤 Creating new sudo user: $NEW_USER"
+
+# Check if user already exists
+if id "$NEW_USER" &>/dev/null; then
+  echo "ℹ️  User '$NEW_USER' already exists."
+else
+  # Create user with disabled password (avoids interactive prompt)
+  adduser --disabled-password --gecos "" "$NEW_USER"
+
+  # Set the password
+  echo "$NEW_USER:$NEW_PASS" | chpasswd
+
+  # Add user to sudo group
+  usermod -aG sudo "$NEW_USER"
+  echo "✅ User '$NEW_USER' created and added to sudo group."
+fi
+
+# Confirm sudo access
+if groups "$NEW_USER" | grep -qw "sudo"; then
+  echo "🔐 '$NEW_USER' has sudo privileges."
+else
+  echo "❌ Failed to assign sudo to '$NEW_USER'"
+  exit 1
+fi
+EOF
+
+
 # TODO: Disable root entirely (no password or login access remotely).
+# TODO: Generate a ssh key on local pc and setup ssh connection with remote.
 # TODO: Disable password logon for new user remotely.
 # TODO: Also allow the script to run using arguments in the terminal
 
