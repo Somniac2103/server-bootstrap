@@ -3,50 +3,82 @@
 # TODO Goal: To create a script that can be downloaded then runned locally to create a secure link with an remote ubuntu server then install all the required programs for ansible to work and download a designated repository which will be use in the next phase of setup with ansible.
 
 # TODO REQUIREMENTS:
-# TODO: Must get and valdiate all necessary information for the process to run.
-# # ----------------------------
-# # 🌐 User Input & Validation
-# # ----------------------------
 
-# read -rp "🌐 Enter server IP address: " SERVER_IP
-# while ! [[ "$SERVER_IP" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; do
-#   echo "❌ Invalid IP format. Use something like 192.168.1.10"
-#   read -rp "🌐 Enter server IP address: " SERVER_IP
-# done
+# TODO: Also allow the script to run using arguments in the terminal
+# ----------------------------
+# 📥 CLI Argument Parsing + Help
+# ----------------------------
 
-# read -rp "👤 Enter NEW sudo username to create: " NEW_USER
-# while ! [[ "$NEW_USER" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]]; do
-#   echo "❌ Invalid username. Use lowercase letters, digits, _ or - (max 32 chars, start with a letter or underscore)."
-#   read -rp "👤 Enter NEW sudo username to create: " NEW_USER
-# done
+show_help() {
+  echo -e "\n🔧 Usage: ./bootstrap.sh [options]"
+  echo -e "\nOPTIONS:"
+  echo "  --ip         <IPv4>        Required. IP address of remote Ubuntu server (e.g. 192.168.1.10)"
+  echo "  --user       <username>    Required. New sudo user to create (e.g. somniac)"
+  echo "  --pass       <password>    Required. Password for new user (min 8 chars, 1 upper, 1 lower, 1 digit)"
+  echo "  --rootpass   <password>    Required. Root SSH password (used for initial access)"
+  echo "  --repo       <URL>         Required. Git HTTPS URL (e.g. https://github.com/user/repo.git)"
+  echo "  --help                     Show this help message and exit"
 
-# read -rsp "🔑 Enter password for new user '$NEW_USER': " NEW_PASS
-# echo
-# while [[ ${#NEW_PASS} -lt 8 || ! "$NEW_PASS" =~ [A-Z] || ! "$NEW_PASS" =~ [a-z] || ! "$NEW_PASS" =~ [0-9] ]]; do
-#   echo "❌ Password must be at least 8 characters and include upper-case, lower-case, and a digit."
-#   read -rsp "🔑 Enter password for new user '$NEW_USER': " NEW_PASS
-#   echo
-# done
+  echo -e "\n💡 Example:"
+  echo './bootstrap.sh --ip 82.29.190.13 --user somniac --pass Nomlas2103 --rootpass N1xk4&SnwaDSC9ypyy --repo https://github.com/Somniac2103/server-bootstrap'
+  exit 0
+}
 
-# read -rsp "🛡️  Enter root password for $SERVER_IP: " ROOT_PASS
-# echo
-# while [[ -z "$ROOT_PASS" ]]; do
-#   echo "❌ Root password cannot be empty."
-#   read -rsp "🛡️  Enter root password for $SERVER_IP: " ROOT_PASS
-#   echo
-# done
+# Parse CLI arguments
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --ip) SERVER_IP="$2"; shift 2 ;;
+    --user) NEW_USER="$2"; shift 2 ;;
+    --pass) NEW_PASS="$2"; shift 2 ;;
+    --rootpass) ROOT_PASS="$2"; shift 2 ;;
+    --repo) GIT_REPO="$2"; shift 2 ;;
+    --help) show_help ;;
+    *) echo "❌ Unknown option: $1"; show_help ;;
+  esac
+done
 
-# read -rp "📦 Enter Git HTTPS repo URL for Phase 2: " GIT_REPO
-# while ! [[ "$GIT_REPO" =~ ^https:\/\/[a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+(\.git)?$ ]]; do
-#   echo "❌ Invalid Git URL. Use HTTPS format like https://github.com/user/repo.git"
-#   read -rp "📦 Enter Git HTTPS repo URL for Phase 2: " GIT_REPO
-# done
+# ----------------------------
+# 🌐 User Input & Validation
+# ----------------------------
 
-SERVER_IP="82.29.190.13"
-NEW_USER="test"
-NEW_PASS="Test123"
-ROOT_PASS="N1xk4&SnwaDSC9ypyy"
-GIT_REPO="https://github.com/Somniac2103/server-bootstrap"
+# IP address
+while [[ -z "$SERVER_IP" || ! "$SERVER_IP" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; do
+  read -rp "🌐 Enter server IP address: " SERVER_IP
+  [[ "$SERVER_IP" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || echo "❌ Invalid IP format. Use something like 192.168.1.10"
+done
+
+# Username
+while [[ -z "$NEW_USER" || ! "$NEW_USER" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]]; do
+  read -rp "👤 Enter NEW sudo username to create: " NEW_USER
+  [[ "$NEW_USER" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || echo "❌ Invalid username. Use lowercase letters, digits, _ or - (max 32 chars, start with a letter or underscore)."
+done
+
+# New user password
+while [[ -z "$NEW_PASS" || ${#NEW_PASS} -lt 8 || ! "$NEW_PASS" =~ [A-Z] || ! "$NEW_PASS" =~ [a-z] || ! "$NEW_PASS" =~ [0-9] ]]; do
+  read -rsp "🔑 Enter password for new user '$NEW_USER': " NEW_PASS
+  echo
+  [[ ${#NEW_PASS} -ge 8 && "$NEW_PASS" =~ [A-Z] && "$NEW_PASS" =~ [a-z] && "$NEW_PASS" =~ [0-9] ]] || echo "❌ Password must be at least 8 characters and include upper-case, lower-case, and a digit."
+done
+
+# Root password
+while [[ -z "$ROOT_PASS" ]]; do
+  read -rsp "🛡️  Enter root password for $SERVER_IP: " ROOT_PASS
+  echo
+  [[ -z "$ROOT_PASS" ]] && echo "❌ Root password cannot be empty."
+done
+
+# Git Repo
+while [[ -z "$GIT_REPO" || ! "$GIT_REPO" =~ ^https:\/\/[a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+(\.git)?$ ]]; do
+  read -rp "📦 Enter Git HTTPS repo URL for Phase 2: " GIT_REPO
+  [[ "$GIT_REPO" =~ ^https:\/\/[a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+(\.git)?$ ]] || echo "❌ Invalid Git URL. Use HTTPS format like https://github.com/user/repo.git"
+done
+
+
+# SERVER_IP="82.29.190.13"
+# NEW_USER="test"
+# NEW_PASS="Test123"
+# ROOT_PASS="N1xk4&SnwaDSC9ypyy"
+# GIT_REPO="https://github.com/Somniac2103/server-bootstrap"
 
 
 echo -e "\n✅ Input Summary:"
@@ -248,10 +280,6 @@ echo "✅ Password login disabled for all users except root."
 EOF
 
 
-
-
-
-# TODO: Also allow the script to run using arguments in the terminal
 
 # TODO EXTRAS:
 # TODO : Generate error for debugging.
