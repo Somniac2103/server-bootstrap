@@ -166,10 +166,82 @@ else
 fi
 EOF
 
-
 # TODO: Disable root entirely (no password or login access remotely).
+# TODO: UNCOMMENT THIS SECTION TO BLOCK ROOT IN PRODUCTIONS!!!
+# sshpass -p "$ROOT_PASS" ssh -o StrictHostKeyChecking=no root@"$SERVER_IP" << 'EOF'
+# echo -e "\n🔒 Disabling remote root SSH login..."
+
+# # Backup existing ssh config
+# cp /etc/ssh/sshd_config /etc/ssh/sshd_config.bak
+
+# # Set PermitRootLogin to no
+# if grep -q "^PermitRootLogin" /etc/ssh/sshd_config; then
+#   sed -i 's/^PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
+# else
+#   echo "PermitRootLogin no" >> /etc/ssh/sshd_config
+# fi
+
+# # Restart SSH to apply
+# systemctl restart ssh
+
+# echo "✅ Remote root login is now disabled."
+# EOF
+
 # TODO: Generate a ssh key on local pc and setup ssh connection with remote.
+
+# ----------------------------
+# 🔑 Generate and Configure SSH Key
+# ----------------------------
+
+echo -e "\n🔑 Setting up SSH key-based login for $NEW_USER@$SERVER_IP..."
+
+# 1. Generate SSH key if it doesn't exist
+if [ ! -f "$HOME/.ssh/id_rsa" ]; then
+  echo "🛠️  Generating SSH key..."
+  ssh-keygen -t rsa -b 4096 -C "bootstrap@local" -N "" -f "$HOME/.ssh/id_rsa"
+else
+  echo "📎 SSH key already exists: $HOME/.ssh/id_rsa"
+fi
+
+# 2. Copy public key to remote user's authorized_keys
+echo "🚀 Copying public key to remote server..."
+sshpass -p "$NEW_PASS" ssh -o StrictHostKeyChecking=no "$NEW_USER@$SERVER_IP" <<EOF
+mkdir -p ~/.ssh && chmod 700 ~/.ssh
+echo "$(cat $HOME/.ssh/id_rsa.pub)" >> ~/.ssh/authorized_keys
+chmod 600 ~/.ssh/authorized_keys
+EOF
+
+# 3. Test login
+echo "🧪 Testing SSH key login..."
+if ssh -o PasswordAuthentication=no -o StrictHostKeyChecking=no "$NEW_USER@$SERVER_IP" "whoami" | grep -q "$NEW_USER"; then
+  echo "✅ SSH key login successful for $NEW_USER@$SERVER_IP"
+else
+  echo "❌ SSH key login failed. Password login still required."
+fi
+
 # TODO: Disable password logon for new user remotely.
+ssh -o StrictHostKeyChecking=no "$NEW_USER@$SERVER_IP" << 'EOF'
+echo -e "\n🔐 Disabling password login for all users except root..."
+
+# Backup ssh config
+sudo cp /etc/ssh/sshd_config /etc/ssh/sshd_config.bak
+
+# Remove any existing global PasswordAuthentication lines
+sudo sed -i '/^PasswordAuthentication/d' /etc/ssh/sshd_config
+
+# Add global default to disable password login
+echo "PasswordAuthentication no" | sudo tee -a /etc/ssh/sshd_config > /dev/null
+
+# Allow root to keep using password login
+echo -e "\nMatch User root\n  PasswordAuthentication yes" | sudo tee -a /etc/ssh/sshd_config > /dev/null
+
+# Restart SSH
+sudo systemctl restart ssh
+
+echo "✅ Password login disabled for all users except root."
+EOF
+
+
 # TODO: Also allow the script to run using arguments in the terminal
 
 # TODO EXTRAS:
