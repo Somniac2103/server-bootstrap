@@ -235,4 +235,68 @@ else
   echo "❌ Key-based login for $NEW_USER failed. Root SSH access NOT disabled to prevent lockout."
 fi
 
+# --------------------------------------
+# ✅ FINAL VALIDATION + REPORT
+# --------------------------------------
+
+log "🧪 Running post-install validation checks..."
+
+VALIDATION_SUMMARY=""
+
+# 1. Confirm root SSH login is disabled
+if ssh -o PasswordAuthentication=no -o StrictHostKeyChecking=no "$NEW_USER@$SERVER_IP" "sudo grep -q '^PermitRootLogin no' /etc/ssh/sshd_config"; then
+  VALIDATION_SUMMARY+="✔️ Root SSH login is disabled\n"
+else
+  VALIDATION_SUMMARY+="❌ Root SSH login is NOT properly disabled\n"
+fi
+
+# 2. Confirm PasswordAuthentication is disabled for new user
+if ssh -o PasswordAuthentication=no -o StrictHostKeyChecking=no "$NEW_USER@$SERVER_IP" "sudo grep -q '^PasswordAuthentication no' /etc/ssh/sshd_config"; then
+  VALIDATION_SUMMARY+="✔️ Password login disabled for users\n"
+else
+  VALIDATION_SUMMARY+="❌ Password login may still be enabled\n"
+fi
+
+# 3. Confirm Git repo cloned
+if ssh -o PasswordAuthentication=no -o StrictHostKeyChecking=no "$NEW_USER@$SERVER_IP" "test -d /tmp/bootstrap-repo && [ \$(ls -A /tmp/bootstrap-repo | wc -l) -gt 0 ]"; then
+  VALIDATION_SUMMARY+="✔️ Git repo cloned to /tmp/bootstrap-repo\n"
+else
+  VALIDATION_SUMMARY+="❌ Git repo not properly cloned\n"
+fi
+
+# 4. Confirm Ansible is installed
+if ssh -o PasswordAuthentication=no -o StrictHostKeyChecking=no "$NEW_USER@$SERVER_IP" "ansible --version >/dev/null 2>&1"; then
+  VALIDATION_SUMMARY+="✔️ Ansible is installed and working\n"
+else
+  VALIDATION_SUMMARY+="❌ Ansible not found\n"
+fi
+
+# 5. Confirm key-based login works
+if ssh -o PasswordAuthentication=no "$NEW_USER@$SERVER_IP" "whoami" | grep -q "$NEW_USER"; then
+  VALIDATION_SUMMARY+="✔️ Key-based login works for $NEW_USER\n"
+else
+  VALIDATION_SUMMARY+="❌ Key-based login failed\n"
+fi
+
+# --------------------------------------
+# 📝 WRITE FINAL REPORT
+# --------------------------------------
+
+{
+echo -e "\n🚀 Bootstrap Report - $timestamp"
+echo -e "-------------------------------"
+echo "📌 Server IP:           $SERVER_IP"
+echo "👤 Username:            $NEW_USER"
+echo "🔑 User Password:       $NEW_PASS"
+echo "🔐 Root Password:       $ROOT_PASS"
+echo "📦 Git Repo:            $GIT_REPO"
+echo "📁 Cloned To:           /tmp/bootstrap-repo"
+echo "🔐 Public Key:"
+cat "$HOME/.ssh/id_rsa.pub"
+echo -e "\n🧪 Validation Summary:\n$VALIDATION_SUMMARY"
+} > "$REPORT_FILE"
+
+# Notify user
+echo -e "\n📄 Final report saved to: $REPORT_FILE"
+echo "⚠️  This contains sensitive information. Move it to a secure location."
 
